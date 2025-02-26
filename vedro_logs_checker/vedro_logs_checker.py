@@ -1,6 +1,5 @@
 import datetime
 import logging
-import os
 
 import docker
 from vedro.core import Dispatcher, Plugin, PluginConfig
@@ -14,7 +13,7 @@ class VedroLogsCheckerPlugin(Plugin):
         super().__init__(config)
         self._start_time = None
         self._project_containers = []
-        self._log_levels = config.log_levels
+        self._search_for = config.search_for
         self._ignore_prefixes = config.ignore_prefixes
         self._fail_on_errors = config.fail_on_errors
         self._client = docker.from_env()
@@ -71,8 +70,9 @@ class VedroLogsCheckerPlugin(Plugin):
 
                 for line in logs.splitlines():
                     log_time, log_message = self._convert_log_str(line)
-
-                    if log_time >= self._start_time and any(level in log_message for level in self._log_levels):
+                    log_message_lower = log_message.lower()
+                    search_for_lower = [level.lower() for level in self._search_for]
+                    if log_time >= self._start_time and any(level in log_message_lower for level in search_for_lower):
                         error_logs.append(log_message)
 
                 if error_logs:
@@ -84,7 +84,7 @@ class VedroLogsCheckerPlugin(Plugin):
 
     def _return_errors(self, found_errors: dict):
         if found_errors:
-            error_msg = "\n❌ Найдены ошибки в контейнерах:\n"
+            error_msg = "\n❌ Обнаружено в логах контейнеров:\n"
             for container_name, logs in found_errors.items():
                 error_msg += f"\n🔴 {container_name}:\n" + "\n".join(logs) + "\n"
             if self._fail_on_errors:
@@ -103,12 +103,9 @@ class VedroLogsCheckerPlugin(Plugin):
         self._return_errors(found_errors=found_errors)
 
     async def _on_scenario_run(self, event: ScenarioRunEvent) -> None:
-        scenario = event.scenario_result.scenario
-        scenario_file = os.path.basename(scenario.path)
         scenario_name = event.scenario_result.scenario.subject
         # Пропускаем тесты с игнорируемыми префиксами в subject и названии файла
-        if scenario_name.startswith(tuple(self._ignore_prefixes)) \
-                or scenario_file.startswith(tuple(self._ignore_prefixes)):
+        if scenario_name.startswith(tuple(self._ignore_prefixes)):
             logging.warning(f"Тест {scenario_name} имеет префикс для игнорирования. Логи не проверяем")
             return
 
@@ -124,6 +121,6 @@ class VedroLogsCheckerPlugin(Plugin):
 # Экспорт плагина
 class VedroLogsChecker(PluginConfig):
     plugin = VedroLogsCheckerPlugin
-    log_levels: list[str] = ["LOG"]  # Уровни логов по умолчанию
-    ignore_prefixes: list[str] = ["try_to"]  # Префиксы screnario, которые игнорируются
+    search_for: list[str] = ["ERROR"]  # Искомые подстроки по умолчанию
+    ignore_prefixes: list[str] = ["try to"]  # Префиксы screnario, которые игнорируются
     fail_on_errors: bool = False  # Должен ли тест падать при нахождении ошибок в логах
