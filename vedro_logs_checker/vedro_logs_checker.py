@@ -5,8 +5,6 @@ import docker
 from vedro.core import Dispatcher, Plugin, PluginConfig
 from vedro.events import ScenarioRunEvent
 
-from config import Config
-
 __all__ = ("VedroLogsChecker")
 
 
@@ -19,11 +17,7 @@ class VedroLogsCheckerPlugin(Plugin):
         self._ignore_prefixes = config.ignore_prefixes
         self._fail_when_found = config.fail_when_found
         self._client = docker.from_env()
-        try:
-            self._project_name = Config.Docker.PROJECT_NAME
-        except AttributeError:
-            logging.error("PROJECT_NAME не найден в Config.Docker")
-            self._project_name = None
+        self._project_name = config.project_name
 
         logging.basicConfig(level=logging.WARNING)
 
@@ -32,11 +26,13 @@ class VedroLogsCheckerPlugin(Plugin):
 
     def _get_containers(self):
         try:
+            if not self._project_name:
+                logging.warning("PROJECT_NAME не указан в конфиге, будут проверяться все запущенные контейнеры")
             self._project_containers = self._client.containers.list(filters={"name": self._project_name})
             containers_names = []
             for container in self._project_containers:
                 containers_names.append(container.name)
-            logging.warning(f"Найдены контейнеры: {containers_names}")
+            logging.info(f"Найдены контейнеры: {containers_names}")
         except Exception as e:
             logging.error(f"Ошибка при получении списка контейнеров: {e}")
             return
@@ -100,13 +96,13 @@ class VedroLogsCheckerPlugin(Plugin):
             else:
                 logging.error(error_msg)
         else:
-            logging.warning("Ошибок не найдено в контейнерах проекта.")
+            logging.info("Ошибок не найдено в контейнерах проекта.")
 
     def _check_logs(self, event: ScenarioRunEvent) -> None:
         if not self._start_time or not self._project_containers:
             return
 
-        logging.warning(f"Проверяем логи контейнеров с {self._start_time}")
+        logging.info(f"Проверяем логи контейнеров с {self._start_time}")
         found_errors = self._search_error_logs()
         self._return_errors(found_errors=found_errors, event=event)
 
@@ -118,7 +114,7 @@ class VedroLogsCheckerPlugin(Plugin):
             return
 
         self._start_time = datetime.datetime.utcnow()
-        logging.warning(f"Тест {scenario_name} запустился, сохраняем время {self._start_time}")
+        logging.info(f"Тест {scenario_name} запустился, сохраняем время {self._start_time}")
 
         # Получаем список контейнеров проекта
         self._get_containers()
@@ -132,3 +128,4 @@ class VedroLogsChecker(PluginConfig):
     search_for: list[str] = ["ERROR"]  # Искомые подстроки по умолчанию
     ignore_prefixes: list[str] = ["try to"]  # Префиксы screnario, которые игнорируются
     fail_when_found: bool = True  # Должен ли тест падать при нахождении подстрок в логах
+    project_name: str = ''  # Название проекта для фильтрации докер контейнеров
