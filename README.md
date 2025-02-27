@@ -15,16 +15,17 @@ This plugin helps ensure that your tests do not introduce errors or other messag
 The plugin reads its settings from vedro.cfg.py.
 
 Example configuration:
-```
+```python
 import vedro
 from vedro_logs_checker import vedro_logs_checker
 
 class Config(vedro.Config):
     class Plugins:
         class VedroLogsChecker(vedro_logs_checker.VedroLogsChecker):
-            log_levels = ["ERROR", "CRITICAL"]  # Substrings to check in logs
-            ignore_prefixes = ["skip_", "experimental_"]  # Scenarios with these prefixes will be ignored
-            fail_on_errors = True  # If True, test is marked as FAILED when substrings are found
+            enabled = True
+            search_for = ["ERROR", "CRITICAL"]  # Substrings to check in logs
+            ignore_prefixes = ["try to", "experimental"]  # Scenarios with these prefixes will be ignored
+            fail_when_found = True  # If True, test is marked as FAILED when substrings are found
             project_name = "my_project"  # Only check containers with this name. To check all running containers just don't specify the value
 
 ```
