@@ -17,11 +17,11 @@ The plugin reads its settings from vedro.cfg.py.
 Example configuration:
 ```
 import vedro
-from vedro_logs_checker import VedroLogsChecker
+from vedro_logs_checker import vedro_logs_checker
 
 class Config(vedro.Config):
     class Plugins:
-        VedroLogsChecker:
+        class VedroLogsChecker(vedro_logs_checker.VedroLogsChecker):
             log_levels = ["ERROR", "CRITICAL"]  # Substrings to check in logs
             ignore_prefixes = ["skip_", "experimental_"]  # Scenarios with these prefixes will be ignored
             fail_on_errors = True  # If True, test is marked as FAILED when substrings are found
