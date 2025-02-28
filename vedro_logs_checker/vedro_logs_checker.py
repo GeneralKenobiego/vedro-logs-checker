@@ -3,7 +3,7 @@ import logging
 
 import docker
 from vedro.core import Dispatcher, Plugin, PluginConfig
-from vedro.events import ScenarioRunEvent
+from vedro.events import ScenarioRunEvent, ScenarioPassedEvent, ScenarioFailedEvent
 
 __all__ = ("VedroLogsChecker")
 
@@ -23,6 +23,8 @@ class VedroLogsCheckerPlugin(Plugin):
 
     def subscribe(self, dispatcher: Dispatcher) -> None:
         dispatcher.listen(ScenarioRunEvent, self._on_scenario_run)
+        dispatcher.listen(ScenarioPassedEvent, self._on_scenario_end)
+        dispatcher.listen(ScenarioFailedEvent, self._on_scenario_end)
 
     def _get_containers(self):
         try:
@@ -91,12 +93,12 @@ class VedroLogsCheckerPlugin(Plugin):
             for container_name, logs in found_errors.items():
                 error_msg += f"\n🔴 {container_name}:\n" + "\n".join(logs) + "\n"
             if self._fail_when_found:
-                logging.error(error_msg)
+                event.scenario_result.add_extra_details(error_msg)
                 event.scenario_result.mark_failed()
             else:
-                logging.error(error_msg)
+                event.scenario_result.add_extra_details(error_msg)
         else:
-            logging.info("Ошибок не найдено в контейнерах проекта.")
+            event.scenario_result.add_extra_details(f"{self._search_for} не найдено в логах контейнеров проекта.")
 
     def _check_logs(self, event: ScenarioRunEvent) -> None:
         if not self._start_time or not self._project_containers:
@@ -118,6 +120,8 @@ class VedroLogsCheckerPlugin(Plugin):
 
         # Получаем список контейнеров проекта
         self._get_containers()
+
+    def _on_scenario_end(self, event: ScenarioRunEvent):
         # Проверяем логи после выполнения теста
         self._check_logs(event)
 
@@ -125,7 +129,7 @@ class VedroLogsCheckerPlugin(Plugin):
 # Экспорт плагина
 class VedroLogsChecker(PluginConfig):
     plugin = VedroLogsCheckerPlugin
-    search_for: list[str] = ["ERROR"]  # Искомые подстроки по умолчанию
+    search_for: list[str] = ["ERROR", "CRITICAL"]  # Искомые подстроки по умолчанию
     ignore_prefixes: list[str] = ["try to"]  # Префиксы screnario, которые игнорируются
     fail_when_found: bool = True  # Должен ли тест падать при нахождении подстрок в логах
     project_name: str = ''  # Название проекта для фильтрации докер контейнеров
