@@ -62,9 +62,11 @@ class VedroLogsCheckerPlugin(Plugin):
             return is_found, found_messages
         found_messages = self._search_messages_in_logs()
         if found_messages:
-            error_msg = "\n❌ Обнаружено в логах контейнеров:\n"
+            error_msg = []
+            error_msg.append("❌ Обнаружено в логах контейнеров:")
             for container_name, logs in found_messages.items():
-                error_msg += f"\n🔴 {container_name}:\n" + "\n".join(logs) + "\n"
+                error_msg.append(f"🔴 {container_name}:")
+                error_msg.append(logs)
             is_found = True
             found_messages = error_msg
             scn.found_messages = error_msg
@@ -90,7 +92,7 @@ class VedroLogsCheckerPlugin(Plugin):
             return project_containers
         except Exception as e:
             logging.error(f"Ошибка при получении списка контейнеров: {e}")
-            return
+            return []
 
     def _search_messages_in_logs(self) -> dict:
         found_messages = {}
