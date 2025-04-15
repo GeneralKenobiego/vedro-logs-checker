@@ -1,15 +1,15 @@
 # vedro-logs-checker
 
-A Vedro plugin that checks logs of Docker containers during test execution and detects messages based on given filters.
+A plugin for the vedro.io testing framework that inspects Docker container logs during test execution and searches for messages based on specified substrings.
 
-This plugin helps ensure that your tests do not introduce errors or other message types in running containers during execution.
+This plugin helps ensure that there are no errors or other message types in running containers during test execution.
 
 ## Features:
-- Monitors logs of filtered Docker containers during test execution.
-- Detects specific messages (by <substring>) appearing in logs after the test starts.
-- Ignores certain test scenarios based on prefixes (<prefix>).
-- Uses PROJECT_NAME from cabina.Config to filter the list of containers.
-- Marks tests as FAILED (optional) when errors are found in logs (controlled via <flag> in config).
+- Monitors logs of Docker containers during test execution.
+- Detects specific messages by substrings in logs.
+- Skips specific test scenarios based on prefixes in the 'subject' attribute.
+- Could filter the list of containers to check by a substring in their names.
+- Marks tests as FAILED (optional) when errors are found in logs.
 
 ## Configuration (vedro.cfg.py)
 The plugin reads its settings from vedro.cfg.py.
