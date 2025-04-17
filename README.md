@@ -27,5 +27,6 @@ class Config(vedro.Config):
             ignore_prefixes = ["try to", "experimental"]  # Scenarios with these prefixes will be ignored
             fail_when_found = True  # If True, test is marked as FAILED when substrings are found
             project_name = "my_project"  # Only check containers with this substring in the name. To check all running containers just don't specify the value
+            container_names_to_check = ["grpc", "api", "e2e"] # Optional way to filter containers by name. To check all containers with "project_name" in name just don't specify the value
 
 ```
