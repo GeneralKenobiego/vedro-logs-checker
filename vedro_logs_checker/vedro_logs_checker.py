@@ -8,6 +8,9 @@ from vedro.events import ScenarioRunEvent, StartupEvent
 
 __all__ = ("VedroLogsChecker")
 
+logger = logging.getLogger("vedro_logs_checker")
+logger.setLevel(logging.INFO)
+
 
 class VedroLogsCheckerPlugin(Plugin):
     def __init__(self, config: PluginConfig) -> None:
@@ -21,8 +24,6 @@ class VedroLogsCheckerPlugin(Plugin):
         self._project_name = config.project_name
         self._container_names_to_check = config.container_names_to_check
 
-        logging.basicConfig(level=logging.WARNING)
-
     def subscribe(self, dispatcher: Dispatcher) -> None:
         dispatcher.listen(StartupEvent, self.on_startup)
         dispatcher.listen(ScenarioRunEvent, self.on_scenario_run)
@@ -32,7 +33,7 @@ class VedroLogsCheckerPlugin(Plugin):
         for scenario in event.scenarios:
             # Пропускаем тесты с игнорируемыми префиксами в subject и названии файла
             if scenario.subject.startswith(tuple(self._ignore_prefixes)):
-                logging.info(f"Тест {scenario.subject} имеет префикс для игнорирования. Логи не проверяем")
+                logger.info(f"Тест {scenario.subject} имеет префикс для игнорирования. Логи не проверяем")
             else:
                 step_func = lambda scn: self._new_step(scn)
                 step_func.__name__ = 'checking_logs'
@@ -43,7 +44,7 @@ class VedroLogsCheckerPlugin(Plugin):
 
     def on_scenario_run(self, event: ScenarioRunEvent) -> None:
         self._start_time = datetime.datetime.utcnow()
-        logging.info(f"Тест {event.scenario_result.scenario} запустился, сохраняем время {self._start_time}")
+        logger.info(f"Тест {event.scenario_result.scenario} запустился, сохраняем время {self._start_time}")
 
     def _new_step(self, scn: vedro.Scenario) -> None:
         if self._fail_when_found:
@@ -55,10 +56,10 @@ class VedroLogsCheckerPlugin(Plugin):
         is_found = False
         found_messages = {}
         if not self._project_containers:
-            logging.error('Не найдено запущенных контейнеров')
+            logger.error('Не найдено запущенных контейнеров')
             return is_found, found_messages
         if not self._start_time:
-            logging.error('Не удалось сохранить время начала запуска теста')
+            logger.error('Не удалось сохранить время начала запуска теста')
             return is_found, found_messages
         found_messages = self._search_messages_in_logs()
         if found_messages:
@@ -75,10 +76,10 @@ class VedroLogsCheckerPlugin(Plugin):
     def _get_containers(self) -> list:
         try:
             if not self._project_name:
-                logging.warning("PROJECT_NAME не указан в конфиге, будут проверяться все запущенные контейнеры")
+                logger.warning("PROJECT_NAME не указан в конфиге, будут проверяться все запущенные контейнеры")
             project_containers = self._client.containers.list(filters={"name": self._project_name})
             if not self._container_names_to_check:
-                logging.warning("container_names_to_check не указан в конфиге, "
+                logger.warning("container_names_to_check не указан в конфиге, "
                                 "будут проверяться все запущенные контейнеры проекта")
             else:
                 project_containers = [
@@ -88,10 +89,10 @@ class VedroLogsCheckerPlugin(Plugin):
             containers_names = []
             for container in project_containers:
                 containers_names.append(container.name)
-            logging.info(f"Найдены контейнеры: {containers_names}")
+            logger.info(f"Найдены контейнеры: {containers_names}")
             return project_containers
         except Exception as e:
-            logging.error(f"Ошибка при получении списка контейнеров: {e}")
+            logger.error(f"Ошибка при получении списка контейнеров: {e}")
             return []
 
     def _search_messages_in_logs(self) -> dict:
@@ -111,7 +112,7 @@ class VedroLogsCheckerPlugin(Plugin):
                 if error_logs:
                     found_messages[container.name] = error_logs
             except Exception as e:
-                logging.error(f"Ошибка получения логов контейнера {container.name}: {e}")
+                logger.error(f"Ошибка получения логов контейнера {container.name}: {e}")
         return found_messages
 
     def _convert_log_str(self, line: str) -> tuple[str, str]:
