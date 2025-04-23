@@ -4,6 +4,11 @@ A plugin for the vedro.io testing framework that inspects Docker container logs 
 
 This plugin helps ensure that there are no errors or other message types in running containers during test execution.
 
+## Installation:
+```
+pip install vedro-logs-checker
+```
+
 ## Features:
 - Monitors logs of Docker containers during test execution.
 - Detects specific messages by substrings in logs.
