@@ -98,7 +98,7 @@ class VedroLogsCheckerPlugin(Plugin):
     def _search_messages_in_logs(self) -> dict:
         found_messages = {}
         # Переводим _start_time в UNIX-время
-        start_time_unix = int(self._start_time.timestamp())
+        start_time_unix = self._start_time
         for container in self._project_containers:
             try:
                 logs = container.logs(since=start_time_unix, timestamps=True).decode("utf-8", errors="ignore")
