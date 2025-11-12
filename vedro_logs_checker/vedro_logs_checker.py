@@ -98,7 +98,7 @@ class VedroLogsCheckerPlugin(Plugin):
     def _search_messages_in_logs(self) -> dict:
         found_messages = {}
         # Переводим _start_time в UNIX-время
-        start_time_unix = int(self._start_time.timestamp())
+        start_time_unix = self._start_time
         for container in self._project_containers:
             try:
                 logs = container.logs(since=start_time_unix, timestamps=True).decode("utf-8", errors="ignore")
@@ -108,6 +108,9 @@ class VedroLogsCheckerPlugin(Plugin):
                     log_message_lower = log_message.lower()
                     search_for_lower = [substr.lower() for substr in self._search_for]
                     if log_time >= self._start_time and any(substr in log_message_lower for substr in search_for_lower):
+                        logger.info(f"Имя контейнера с ошибкой в логах: {container.name}")
+                        logger.info(f"Время старта сценария: {self._start_time}")
+                        logger.info(f"Время ошибки: {log_time}")
                         error_logs.append(log_message)
                 if error_logs:
                     found_messages[container.name] = error_logs
@@ -130,10 +133,8 @@ class VedroLogsCheckerPlugin(Plugin):
             # Убираем Z в конце
             timestamp_str = timestamp_str.replace("Z", "+00:00")
             log_time = datetime.datetime.fromisoformat(timestamp_str)
-        except ValueError:
-            # Если не получилось конвертировать в норм timestamp то считаем, что лог новый
-            log_time = self._start_time
-            log_message = line
+        except ValueError as e:
+            logger.error(f"Ошибка конвертации строки {timestamp_str} в timestamp: {e}")
         return log_time, log_message
 
 
