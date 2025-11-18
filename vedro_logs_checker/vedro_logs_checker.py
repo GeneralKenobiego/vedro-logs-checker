@@ -1,5 +1,6 @@
 import datetime
 import logging
+import re
 
 import docker
 import vedro
@@ -22,7 +23,10 @@ class VedroLogsCheckerPlugin(Plugin):
         self._fail_when_found = config.fail_when_found
         self._client = docker.from_env()
         self._project_name = config.project_name
-        self._container_names_to_check = config.container_names_to_check
+        self._container_name_patterns = [
+            # Компилируем регулярные выражения для повышения скорости фильтрации контейнеров
+            re.compile(pattern) for pattern in config.regex_container_names_to_check
+        ]
 
     def subscribe(self, dispatcher: Dispatcher) -> None:
         dispatcher.listen(StartupEvent, self.on_startup)
@@ -78,17 +82,15 @@ class VedroLogsCheckerPlugin(Plugin):
             if not self._project_name:
                 logger.warning("PROJECT_NAME не указан в конфиге, будут проверяться все запущенные контейнеры")
             project_containers = self._client.containers.list(filters={"name": self._project_name})
-            if not self._container_names_to_check:
-                logger.warning("container_names_to_check не указан в конфиге, "
-                                "будут проверяться все запущенные контейнеры проекта")
+            if not self._container_name_patterns:
+                logger.warning("regex_container_names_to_check не указан в конфиге, "
+                               "будут проверяться все запущенные контейнеры проекта")
             else:
                 project_containers = [
                     item for item in project_containers
-                    if any(container_name in item.name for container_name in self._container_names_to_check)
+                    if any(pattern.search(item.name) for pattern in self._container_name_patterns)
                 ]
-            containers_names = []
-            for container in project_containers:
-                containers_names.append(container.name)
+            containers_names = [container.name for container in project_containers]
             logger.info(f"Найдены контейнеры: {containers_names}")
             return project_containers
         except Exception as e:
@@ -145,4 +147,4 @@ class VedroLogsChecker(PluginConfig):
     ignore_prefixes: list[str] = ["try to"]  # Префиксы screnario, которые игнорируются
     fail_when_found: bool = True  # Должен ли тест падать при нахождении подстрок в логах
     project_name: str = ''  # Название проекта для фильтрации докер контейнеров
-    container_names_to_check: list[str] = []  # Названия контейнеров, логи которых нужно проверять (доп фильтрация)
+    regex_container_names_to_check: list[str] = []  # Названия контейнеров для проверки (доп фильтрация по regex)
