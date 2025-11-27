@@ -16,6 +16,7 @@ logger.setLevel(logging.INFO)
 class VedroLogsCheckerPlugin(Plugin):
     def __init__(self, config: PluginConfig) -> None:
         super().__init__(config)
+        self._silent = config.silent
         self._start_time = None
         self._project_containers = []
         self._search_for = config.search_for
@@ -27,12 +28,24 @@ class VedroLogsCheckerPlugin(Plugin):
             # Компилируем регулярные выражения для повышения скорости фильтрации контейнеров
             re.compile(pattern) for pattern in config.regex_container_names_to_check
         ]
+        self._container_name_exclude_patterns = [
+            re.compile(pattern) for pattern in config.regex_container_names_to_ignore
+        ]
 
     def subscribe(self, dispatcher: Dispatcher) -> None:
         dispatcher.listen(StartupEvent, self.on_startup)
         dispatcher.listen(ScenarioRunEvent, self.on_scenario_run)
 
     def on_startup(self, event: StartupEvent) -> None:
+        if not self._silent:
+            logger.warning("VedroLogsChecker подключен. Конфигурация:")
+            logger.warning(f"  Искомые подстроки в логах: {self._search_for}")
+            logger.warning(f"  Название проекта: {self._project_name or '(не указано)'}")
+            logger.warning(f"  Regex для поиска контейнеров: "
+                        f"{[r.pattern for r in self._container_name_patterns] or '(не указаны)'}")
+            logger.warning(f"  Regex для игнорирования контейнеров: "
+                        f"{[r.pattern for r in self._container_name_exclude_patterns] or '(не указаны)'}")
+            logger.warning(f"  Отмечать тест упавшим при нахождении подстрок: {self._fail_when_found}")
         # Добавляем в каждый найденный сценарий кастомный шаг с проверкой логов в конец
         for scenario in event.scenarios:
             # Пропускаем тесты с игнорируемыми префиксами в subject и названии файла
@@ -83,15 +96,21 @@ class VedroLogsCheckerPlugin(Plugin):
                 logger.warning("PROJECT_NAME не указан в конфиге, будут проверяться все запущенные контейнеры")
             project_containers = self._client.containers.list(filters={"name": self._project_name})
             if not self._container_name_patterns:
-                logger.warning("regex_container_names_to_check не указан в конфиге, "
-                               "будут проверяться все запущенные контейнеры проекта")
+                logger.warning("regex_container_names_to_check не указан в конфиге, ")
             else:
                 project_containers = [
                     item for item in project_containers
                     if any(pattern.search(item.name) for pattern in self._container_name_patterns)
                 ]
+            if not self._container_name_exclude_patterns:
+                logger.warning("regex_container_names_to_ignore не указан в конфиге, ")
+            else:
+                project_containers = [
+                    item for item in project_containers
+                    if not any(pattern.search(item.name) for pattern in self._container_name_exclude_patterns)
+                ]
             containers_names = [container.name for container in project_containers]
-            logger.info(f"Найдены контейнеры: {containers_names}")
+            logger.warning(f"Будут проверены логи контейнеров: {containers_names}")
             return project_containers
         except Exception as e:
             logger.error(f"Ошибка при получении списка контейнеров: {e}")
@@ -148,3 +167,5 @@ class VedroLogsChecker(PluginConfig):
     fail_when_found: bool = True  # Должен ли тест падать при нахождении подстрок в логах
     project_name: str = ''  # Название проекта для фильтрации докер контейнеров
     regex_container_names_to_check: list[str] = []  # Названия контейнеров для проверки (доп фильтрация по regex)
+    regex_container_names_to_ignore: list[str] = []  # Названия контейнеров для игнорирования (доп фильтрация по regex)
+    silent: bool = False  # Отключить вывод конфига при старте плагина

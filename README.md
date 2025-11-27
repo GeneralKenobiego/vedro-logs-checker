@@ -13,7 +13,7 @@ pip install vedro-logs-checker
 - Monitors logs of Docker containers during test execution.
 - Detects specific messages by substrings in logs.
 - Skips specific test scenarios based on prefixes in the 'subject' attribute.
-- Could filter the list of containers to check by a substring in their names.
+- Could filter the list of containers to check by regex.
 - Marks tests as FAILED (optional) when errors are found in logs.
 
 ## Configuration (vedro.cfg.py)
@@ -33,5 +33,8 @@ class Config(vedro.Config):
             fail_when_found = True  # If True, test is marked as FAILED when substrings are found
             project_name = "my_project"  # Only check containers with this substring in the name. To check all running containers just don't specify the value
             regex_container_names_to_check = [r"^grpc", "api", r"^e2e"] # Optional way to filter containers by regex. To check all containers with "project_name" in the container name just don't specify the value
+            regex_container_names_to_ignore: list[str] = []  # Optional way to ignore containers by regex.
+            silent: bool = False  # Hide config message on startup
+
 
 ```
