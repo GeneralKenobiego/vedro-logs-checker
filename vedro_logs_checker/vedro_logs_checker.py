@@ -1,7 +1,7 @@
 import datetime
 import logging
 import re
-from typing import Callable, Type, TypeVar
+from typing import Type, TypeVar
 
 import docker
 import vedro
@@ -17,12 +17,10 @@ logger.setLevel(logging.INFO)
 T = TypeVar("T", bound=Type[Scenario])
 
 
-def skip_logs_check() -> Callable[[T], T]:
+def skip_logs_check(scenario: T) -> T:
     # Декоратор для пропуска проверки теста
-    def wrapped(scenario: T) -> T:
-        setattr(scenario, "__vedro__skip_logs_check__", True)
-        return scenario
-    return wrapped
+    setattr(scenario, "__vedro__skip_logs_check__", True)
+    return scenario
 
 
 class VedroLogsCheckerPlugin(Plugin):

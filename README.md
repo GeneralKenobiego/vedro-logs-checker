@@ -12,7 +12,7 @@ pip install vedro-logs-checker
 ## Features:
 - Monitors logs of Docker containers during test execution.
 - Detects specific messages by substrings in logs.
-- Skips specific test scenarios based on prefixes in the 'subject' attribute and/or by @skip_logs_check() decorator.
+- Skips specific test scenarios based on prefixes in the 'subject' attribute and/or by @skip_logs_check decorator.
 - Could filter the list of containers to check by regex.
 - Marks tests as FAILED (optional) when errors are found in logs.
 
