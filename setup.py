@@ -6,7 +6,7 @@ def find_required():
  
 setup(
     name="vedro-logs-checker",
-    version="0.0.7",
+    version="0.0.8",
     description="vedro-logs-checker for the vedro.io framework",
     long_description=open("README.md").read(),
     long_description_content_type="text/markdown",
