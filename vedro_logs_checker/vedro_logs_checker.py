@@ -1,16 +1,26 @@
 import datetime
 import logging
 import re
+from typing import Type, TypeVar
 
 import docker
 import vedro
-from vedro.core import Dispatcher, Plugin, PluginConfig, VirtualStep
+from vedro import Scenario
+from vedro.core import Dispatcher, Plugin, PluginConfig, VirtualScenario, VirtualStep
 from vedro.events import ScenarioRunEvent, StartupEvent
 
 __all__ = ("VedroLogsChecker")
 
 logger = logging.getLogger("vedro_logs_checker")
 logger.setLevel(logging.INFO)
+
+T = TypeVar("T", bound=Type[Scenario])
+
+
+def skip_logs_check(scenario: T) -> T:
+    # Декоратор для пропуска проверки теста
+    setattr(scenario, "__vedro__skip_logs_check__", True)
+    return scenario
 
 
 class VedroLogsCheckerPlugin(Plugin):
@@ -32,6 +42,13 @@ class VedroLogsCheckerPlugin(Plugin):
             re.compile(pattern) for pattern in config.regex_container_names_to_ignore
         ]
 
+    def _has_skip_logs_check(self, scenario: VirtualScenario) -> bool:
+        # Проверяет наличие атрибута __vedro__skip_logs_check__
+        template = getattr(scenario._orig_scenario, "__vedro__template__", None)
+        has_attr = getattr(template, "__vedro__skip_logs_check__", False)
+        has_attr += getattr(scenario._orig_scenario, "__vedro__skip_logs_check__", False)
+        return has_attr
+
     def subscribe(self, dispatcher: Dispatcher) -> None:
         dispatcher.listen(StartupEvent, self.on_startup)
         dispatcher.listen(ScenarioRunEvent, self.on_scenario_run)
@@ -42,15 +59,21 @@ class VedroLogsCheckerPlugin(Plugin):
             logger.warning(f"  Искомые подстроки в логах: {self._search_for}")
             logger.warning(f"  Название проекта: {self._project_name or '(не указано)'}")
             logger.warning(f"  Regex для поиска контейнеров: "
-                        f"{[r.pattern for r in self._container_name_patterns] or '(не указаны)'}")
+                           f"{[r.pattern for r in self._container_name_patterns] or '(не указаны)'}")
             logger.warning(f"  Regex для игнорирования контейнеров: "
-                        f"{[r.pattern for r in self._container_name_exclude_patterns] or '(не указаны)'}")
+                           f"{[r.pattern for r in self._container_name_exclude_patterns] or '(не указаны)'}")
             logger.warning(f"  Отмечать тест упавшим при нахождении подстрок: {self._fail_when_found}")
         # Добавляем в каждый найденный сценарий кастомный шаг с проверкой логов в конец
         for scenario in event.scenarios:
+            skip = self._has_skip_logs_check(scenario)
+            # Пропускаем тесты с декоратором в subject и названии файла
+            if skip:
+                if not self._silent:
+                    logger.warning(f"Тест {scenario.subject} отмечен декоратором для игнорирования. Логи не проверяем")
             # Пропускаем тесты с игнорируемыми префиксами в subject и названии файла
-            if scenario.subject.startswith(tuple(self._ignore_prefixes)):
-                logger.info(f"Тест {scenario.subject} имеет префикс для игнорирования. Логи не проверяем")
+            elif scenario.subject.startswith(tuple(self._ignore_prefixes)):
+                if not self._silent:
+                    logger.warning(f"Тест {scenario.subject} имеет префикс для игнорирования. Логи не проверяем")
             else:
                 step_func = lambda scn: self._new_step(scn)
                 step_func.__name__ = 'checking_logs'
