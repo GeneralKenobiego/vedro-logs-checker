@@ -7,7 +7,7 @@ import docker
 import vedro
 from vedro import Scenario
 from vedro.core import Dispatcher, Plugin, PluginConfig, VirtualScenario, VirtualStep
-from vedro.events import ScenarioRunEvent, StartupEvent
+from vedro.events import ScenarioFailedEvent, ScenarioRunEvent, StartupEvent
 
 __all__ = ("VedroLogsChecker")
 
@@ -52,6 +52,7 @@ class VedroLogsCheckerPlugin(Plugin):
     def subscribe(self, dispatcher: Dispatcher) -> None:
         dispatcher.listen(StartupEvent, self.on_startup)
         dispatcher.listen(ScenarioRunEvent, self.on_scenario_run)
+        dispatcher.listen(ScenarioFailedEvent, self.on_scenario_failed)
 
     def on_startup(self, event: StartupEvent) -> None:
         if not self._silent:
@@ -69,18 +70,40 @@ class VedroLogsCheckerPlugin(Plugin):
             # Пропускаем тесты с декоратором в subject и названии файла
             if skip:
                 if not self._silent:
-                    logger.warning(f"Тест {scenario.subject} отмечен декоратором для игнорирования. Логи не проверяем")
+                    logger.debug(f"Тест {scenario.subject} отмечен декоратором для игнорирования. Логи не проверяем")
             # Пропускаем тесты с игнорируемыми префиксами в subject и названии файла
             elif scenario.subject.startswith(tuple(self._ignore_prefixes)):
                 if not self._silent:
-                    logger.warning(f"Тест {scenario.subject} имеет префикс для игнорирования. Логи не проверяем")
+                    logger.debug(f"Тест {scenario.subject} имеет префикс для игнорирования. Логи не проверяем")
             else:
                 step_func = lambda scn: self._new_step(scn)
                 step_func.__name__ = 'checking_logs'
                 step = VirtualStep(step_func)
                 scenario._steps.append(step)
+        # Добавляем в каждый найденный сценарий кастомный шаг с созданными переменными для логов в начало
+        for scenario in event.scenarios:
+            step_func = lambda scn: self._add_log_variables(scn)
+            step_func.__name__ = 'containers_logs'
+            step = VirtualStep(step_func)
+            scenario._steps.insert(0, step)
         # Получаем список контейнеров проекта
         self._project_containers = self._get_containers()
+
+    def on_scenario_failed(self, event: ScenarioFailedEvent) -> None:
+        start_time_unix = self._start_time
+        for container in self._project_containers:
+            try:
+                # Получаем логи контейнера, начиная с момента запуска теста
+                logs = container.logs(since=start_time_unix, timestamps=True)
+                logs = logs.decode("utf-8", errors="ignore").splitlines()
+                # Сохраняем логи в заранее созданные атрибуты в scope сценария для отображения в переменных в отчете
+                event.scenario_result.scope[container.name] = logs
+            except Exception as e:
+                event.scenario_result.scope[container.name] = f"Ошибка получения логов контейнера {container.name}: {e}"
+
+    def _add_log_variables(self, scn: vedro.Scenario) -> None:
+        for container in self._project_containers:
+            setattr(scn, container.name, '')
 
     def on_scenario_run(self, event: ScenarioRunEvent) -> None:
         self._start_time = datetime.datetime.utcnow()
