@@ -27,6 +27,7 @@ class VedroLogsCheckerPlugin(Plugin):
     def __init__(self, config: PluginConfig) -> None:
         super().__init__(config)
         self._silent = config.silent
+        self._show_found_logs_in_cli = config.show_found_logs_in_cli
         self._start_time = None
         self._project_containers = []
         self._search_for = config.search_for
@@ -81,25 +82,27 @@ class VedroLogsCheckerPlugin(Plugin):
                 step = VirtualStep(step_func)
                 scenario._steps.append(step)
         # Добавляем в каждый найденный сценарий кастомный шаг с созданными переменными для логов в начало
-        for scenario in event.scenarios:
-            step_func = lambda scn: self._add_log_variables(scn)
-            step_func.__name__ = 'containers_logs'
-            step = VirtualStep(step_func)
-            scenario._steps.insert(0, step)
+        if self._show_found_logs_in_cli:
+            for scenario in event.scenarios:
+                step_func = lambda scn: self._add_log_variables(scn)
+                step_func.__name__ = 'containers_logs'
+                step = VirtualStep(step_func)
+                scenario._steps.insert(0, step)
         # Получаем список контейнеров проекта
         self._project_containers = self._get_containers()
 
     def on_scenario_failed(self, event: ScenarioFailedEvent) -> None:
-        start_time_unix = self._start_time
-        for container in self._project_containers:
-            try:
-                # Получаем логи контейнера, начиная с момента запуска теста
-                logs = container.logs(since=start_time_unix, timestamps=True)
-                logs = logs.decode("utf-8", errors="ignore").splitlines()
-                # Сохраняем логи в заранее созданные атрибуты в scope сценария для отображения в переменных в отчете
-                event.scenario_result.scope[container.name] = logs
-            except Exception as e:
-                event.scenario_result.scope[container.name] = f"Ошибка получения логов контейнера {container.name}: {e}"
+        if self._show_found_logs_in_cli:
+            start_time_unix = self._start_time
+            for container in self._project_containers:
+                try:
+                    # Получаем логи контейнера, начиная с момента запуска теста
+                    logs = container.logs(since=start_time_unix, timestamps=True)
+                    logs = logs.decode("utf-8", errors="ignore").splitlines()
+                    # Сохраняем логи в заранее созданные атрибуты в scope сценария для отображения в переменных в отчете
+                    event.scenario_result.scope[container.name] = logs
+                except Exception as e:
+                    event.scenario_result.scope[container.name] = f"Ошибка получения логов {container.name}: {e}"
 
     def _add_log_variables(self, scn: vedro.Scenario) -> None:
         for container in self._project_containers:
@@ -208,6 +211,7 @@ class VedroLogsCheckerPlugin(Plugin):
 # Экспорт плагина
 class VedroLogsChecker(PluginConfig):
     plugin = VedroLogsCheckerPlugin
+    show_found_logs_in_cli: bool = True  # Показывать найденные логи в CLI
     search_for: list[str] = ["ERROR", "CRITICAL"]  # Искомые подстроки по умолчанию
     ignore_prefixes: list[str] = ["try to"]  # Префиксы screnario, которые игнорируются
     fail_when_found: bool = True  # Должен ли тест падать при нахождении подстрок в логах
