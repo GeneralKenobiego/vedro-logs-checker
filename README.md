@@ -28,6 +28,7 @@ class Config(vedro.Config):
     class Plugins:
         class VedroLogsChecker(vedro_logs_checker.VedroLogsChecker):
             enabled = True
+            show_found_logs_in_cli = True # If True, the found logs will be displayed among the steps of the failed test
             search_for = ["ERROR", "CRITICAL"]  # Substrings to check in logs
             ignore_prefixes = ["try to", "experimental"]  # Scenarios with these prefixes will be ignored
             fail_when_found = True  # If True, test is marked as FAILED when substrings are found
